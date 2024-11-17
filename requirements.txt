@@ -3,3 +3,7 @@ fastapi
 uvicorn
 fastapi_pagination
 pytest
+apache-airflow
+apache-airflow-providers-postgres
+pandas
+psycopg2-binary
