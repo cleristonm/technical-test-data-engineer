@@ -10,9 +10,12 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.utils.log.logging_mixin import LoggingMixin
 
-from src.extractors.tracks_extractor import TracksExtractor
+from src.extractors.generic_extractor import GenericExtractor
 from src.transformers.tracks_transformer import TracksTransformer
-from src.loaders.postgres_loader import PostgresLoader
+from src.transformers.users_transformer import UsersTransformer
+from src.transformers.listen_history_transformer import ListenHistoryTransformer
+from src.loaders.generic_postgres_loader import GenericPostgresLoader
+from src.loaders.listen_history_postgres_loader import ListenHistoryPostgresLoader
 from ast import literal_eval
 
 logger = LoggingMixin().log
@@ -60,11 +63,13 @@ with DAG('music_etl',
     logger.info("Starting DAG")
 
     # Create tasks for each entity
-    entities = ['tracks']  # Add more entities as needed
+    entities = ['tracks', 'users', 'listen_history']  
+    tasks_by_entity = {}  # Dictionary to store tasks for each entity
     
     for entity in entities:
-        extractor_class = globals()[f'{entity.title()}Extractor']
-        transformer_class = globals()[f'{entity.title()}Transformer']
+        # Convert snake_case to PascalCase
+        class_name = ''.join(word.title() for word in entity.split('_'))
+        transformer_class = globals()[f'{class_name}Transformer']
         
         # Extract task
         extract_task = PythonOperator(
@@ -72,7 +77,7 @@ with DAG('music_etl',
             python_callable=extract_data,
             op_kwargs={
                 'entity_name': entity,
-                'extractor': extractor_class(base_url)
+                'extractor': GenericExtractor(base_url, entity)
             }
         )
 
@@ -88,15 +93,23 @@ with DAG('music_etl',
         )
 
         # Load task
+        loader = ListenHistoryPostgresLoader(db_params) if entity == 'listen_history' else GenericPostgresLoader(db_params)
         load_task = PythonOperator(
             task_id=f'load_{entity}',
             python_callable=load_data,
             op_kwargs={
                 'entity_name': entity,
-                'loader': PostgresLoader(db_params),
+                'loader': loader,
                 'transformed_data': "{{ task_instance.xcom_pull(task_ids='transform_" + entity + "') }}"
             }
         )
 
-        # Set task dependencies
+        # Store tasks in dictionary
+        tasks_by_entity[entity] = [extract_task, transform_task, load_task]
+        
+        # Set basic task dependencies within each entity
         extract_task >> transform_task >> load_task
+
+    # Make listen_history wait for tracks and users to complete
+    for dependency_entity in ['tracks', 'users']:
+        tasks_by_entity[dependency_entity][-1] >> tasks_by_entity['listen_history'][0]

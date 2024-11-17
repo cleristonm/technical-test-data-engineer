@@ -5,20 +5,21 @@ from typing import List, Dict, Any
 from airflow.utils.log.logging_mixin import LoggingMixin
 
 class BaseExtractor(ABC, LoggingMixin):
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, endpoint: str):
         self.base_url = base_url
+        self.endpoint = endpoint
         super().__init__()
 
-    def fetch_all_pages(self, endpoint: str, page_size: int = 100) -> List[Dict]:
+    def fetch_all_pages(self, page_size: int = 100) -> List[Dict]:
         """Fetches all pages from the API"""
         all_items = []
         current_page = 1
         
-        self.log.info(f"Starting data extraction from endpoint: {endpoint}")
+        self.log.info(f"Starting data extraction from endpoint: {self.endpoint}")
         
         try:
             while True:
-                url = f"{self.base_url}/{endpoint}?page={current_page}&size={page_size}"
+                url = f"{self.base_url}/{self.endpoint}?page={current_page}&size={page_size}"
                 self.log.debug(f"Fetching page {current_page} from URL: {url}")
                 
                 response = requests.get(url)
