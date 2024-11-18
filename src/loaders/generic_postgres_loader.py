@@ -1,3 +1,10 @@
+"""
+Generic PostgreSQL loader implementation.
+
+This module provides a generic implementation for loading data into PostgreSQL
+databases with UPSERT functionality and error handling.
+"""
+
 from typing import List, Dict, Any
 import psycopg2
 from psycopg2.extras import execute_values
@@ -7,7 +14,7 @@ from .base_postgres_loader import BasePostgresLoader
 class GenericPostgresLoader(BasePostgresLoader):
     """
     A generic loader for PostgreSQL databases that handles data insertion with UPSERT functionality.
-    
+
     This loader supports bulk loading of data into PostgreSQL tables with conflict resolution
     on the 'id' column.
     """
@@ -40,9 +47,9 @@ class GenericPostgresLoader(BasePostgresLoader):
 
         columns = data[0].keys()
         values = [[row[column] for column in columns] for row in data]
-        
+
         self.log.info(f"Starting to load {len(data)} records into table {table_name}")
-        
+
         try:
             with psycopg2.connect(**self.connection_params) as conn:
                 with conn.cursor() as cur:
@@ -53,8 +60,10 @@ class GenericPostgresLoader(BasePostgresLoader):
                         SET {','.join(f"{col}=EXCLUDED.{col}" for col in columns if col != 'id')}
                     """
                     execute_values(cur, insert_query, values)
-                    self.log.info(f"Successfully loaded {len(data)} records into table {table_name}")
-                    
+                    self.log.info(
+                        f"Successfully loaded {len(data)} records into {table_name}"
+                    )
+
         except Exception as e:
             self.log.error(f"Error loading data into {table_name}: {str(e)}")
             raise

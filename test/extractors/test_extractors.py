@@ -38,7 +38,8 @@ class TestExtractors:
             assert result[0]['id'] == 1
             assert result[1]['id'] == 2
             mock_get.assert_called_once_with(
-                'http://test.api/test-endpoint?page=1&size=100'
+                'http://test.api/test-endpoint?page=1&size=100',
+                timeout=30
             )
 
     def test_successful_multiple_pages(self, extractor, mock_multiple_pages):
@@ -71,5 +72,6 @@ class TestExtractors:
         with patch('requests.get', return_value=mock_single_page) as mock_get:
             extractor.fetch_all_pages(page_size=50)
             mock_get.assert_called_once_with(
-                'http://test.api/test-endpoint?page=1&size=50'
+                'http://test.api/test-endpoint?page=1&size=50',
+                timeout=30
             ) 

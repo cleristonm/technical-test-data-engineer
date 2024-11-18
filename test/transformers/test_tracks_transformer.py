@@ -30,13 +30,13 @@ def valid_track_data():
     """
     return [
         {
-            'id': '1',
-            'name': 'Test Track',
-            'artist': 'Test Artist',
-            'duration': '3:45',
-            'genres': '{rock,pop}',
-            'created_at': '2024-01-01T00:00:00Z',
-            'updated_at': '2024-01-01T00:00:00Z'
+            "id": "1",
+            "name": "Test Track",
+            "artist": "Test Artist",
+            "duration": "3:45",
+            "genres": "{rock,pop}",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z",
         }
     ]
 
@@ -50,17 +50,17 @@ def test_successful_transformation(transformer, valid_track_data):
         valid_track_data: List fixture with valid track data.
     """
     result = transformer.transform(valid_track_data)
-    
+
     assert isinstance(result, list)
     assert len(result) == 1
-    
+
     # Verify transformed data
     first_record = result[0]
-    assert first_record['id'] == 1
-    assert first_record['name'] == 'Test Track'
-    assert first_record['artist'] == 'Test Artist'
-    assert first_record['duration'] == '3:45'
-    assert first_record['genres'] == 'rock,pop'
+    assert first_record["id"] == 1
+    assert first_record["name"] == "Test Track"
+    assert first_record["artist"] == "Test Artist"
+    assert first_record["duration"] == "3:45"
+    assert first_record["genres"] == "rock,pop"
 
 
 def test_missing_required_fields(transformer):
@@ -70,8 +70,8 @@ def test_missing_required_fields(transformer):
     Args:
         transformer: TracksTransformer fixture.
     """
-    invalid_data = [{'id': 1, 'name': 'Test Track'}]  # Missing required fields
-    
+    invalid_data = [{"id": 1, "name": "Test Track"}]  # Missing required fields
+
     with pytest.raises(TransformerError) as exc_info:
         transformer.transform(invalid_data)
     assert "Missing required fields" in str(exc_info.value)
@@ -84,16 +84,17 @@ def test_invalid_duration_format(transformer):
     Args:
         transformer: TracksTransformer fixture.
     """
-    invalid_data = [{
-        'id': '1',
-        'name': 'Test Track',
-        'artist': 'Test Artist',
-        'duration': 'invalid',  # Invalid duration
-        'genres': '{rock}',
-        'created_at': '2024-01-01T00:00:00Z',
-        'updated_at': '2024-01-01T00:00:00Z'
-    }]
-    
+    invalid_data = [
+        {
+            "id": "1",
+            "name": "Test Track",
+            "artist": "Test Artist",
+            "duration": "invalid",  # Invalid duration
+            "genres": "{rock}",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z",
+        }
+    ]
+
     result = transformer.transform(invalid_data)
     assert len(result) == 0  # Verify invalid records are filtered out
-    
