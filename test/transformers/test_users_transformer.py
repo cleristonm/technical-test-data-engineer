@@ -11,10 +11,10 @@ def transformer():
 def valid_user():
     return {
         'id': 1,
-        'first_name': 'John',
-        'last_name': 'Doe',
-        'email': 'john@example.com',
-        'gender': 'M',
+        'first_name': 'Marc-Antoine',
+        'last_name': 'Gagnon',
+        'email': 'marc-antoine@example.com',
+        'gender': 'Male',
         'favorite_genres': 'rock,pop',
         'created_at': '2024-03-20T10:00:00',
         'updated_at': '2024-03-20T10:00:00'
@@ -25,7 +25,7 @@ class TestUsersTransformer:
 
     def test_transform_valid_user(self, transformer, valid_user, caplog):
         """Test transformation of valid user data"""
-        result = transformer.transform([valid_user])
+        result = transformer._transform([valid_user])
         
         assert len(result) == 1
         transformed = result[0]
@@ -36,8 +36,8 @@ class TestUsersTransformer:
 
     def test_validate_gender(self, transformer):
         """Test gender validation"""
-        assert transformer._validate_gender("M") == "M"
-        assert transformer._validate_gender("f") == "F"
+        assert transformer._validate_gender("Male") == "Male"
+        assert transformer._validate_gender("Agender") == "Agender"
         
         with pytest.raises(ValueError) as exc_info:
             transformer._validate_gender("invalid")
@@ -48,7 +48,7 @@ class TestUsersTransformer:
         duplicate_user = valid_user.copy()
         duplicate_user['id'] = 2
         
-        result = transformer.transform([valid_user, duplicate_user])
+        result = transformer._transform([valid_user, duplicate_user])
         
         assert len(result) == 1
         assert "Skipping duplicate email" in caplog.text
@@ -60,7 +60,7 @@ class TestUsersTransformer:
             'updated_at': '2024-03-20T10:00:00'
         }
         
-        result = transformer.transform([invalid_user])
+        result = transformer._transform([invalid_user])
         
         assert len(result) == 0
         expected_fields = ['id', 'first_name', 'last_name', 'email', 'gender', 'favorite_genres']

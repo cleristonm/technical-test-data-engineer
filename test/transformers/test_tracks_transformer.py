@@ -24,7 +24,7 @@ class TestTracksTransformer:
 
     def test_transform_valid_track(self, transformer, valid_track, caplog):
         """Test transformation of valid track data"""
-        result = transformer.transform([valid_track])
+        result = transformer._transform([valid_track])
         
         assert len(result) == 1
         transformed = result[0]
@@ -37,7 +37,7 @@ class TestTracksTransformer:
         invalid_track = valid_track.copy()
         invalid_track['duration'] = 'invalid'
         
-        result = transformer.transform([invalid_track])
+        result = transformer._transform([invalid_track])
         
         assert len(result) == 0
         assert "Invalid duration format" in caplog.text

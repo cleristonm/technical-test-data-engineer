@@ -1,10 +1,22 @@
 from .base_transformer import BaseTransformer
 from typing import List, Dict, Any
 
+VALID_GENDERS = {
+    'Agender',
+    'Bigender',
+    'Female', 
+    'Genderfluid',
+    'Gender nonconforming',
+    'Genderqueer',
+    'Gender questioning',
+    'Male',
+    'Non-binary'
+}
+
 class UsersTransformer(BaseTransformer):
     """Transforms user data into a standardized format."""
     
-    def transform(self, raw_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _transform(self, raw_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Transforms raw user data into standardized records.
         
@@ -86,7 +98,7 @@ class UsersTransformer(BaseTransformer):
         Validates and standardizes gender value.
         
         Args:
-            gender: Gender value to validate ('M' or 'F')
+            gender: Gender value to validate
             
         Returns:
             Standardized gender value in uppercase
@@ -95,6 +107,9 @@ class UsersTransformer(BaseTransformer):
             ValueError: If gender value is invalid
         """
         gender = self._validate_string(gender, 'gender')
-        if gender.upper() not in ['M', 'F']:
+        if gender not in VALID_GENDERS:
             raise ValueError(f"Invalid gender value: {gender}")
-        return gender.upper()
+        return gender
+
+    
+

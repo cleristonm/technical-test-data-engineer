@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 class TracksTransformer(BaseTransformer):
     """Transforms music track data into a standardized format."""
     
-    def transform(self, raw_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _transform(self, raw_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Transforms raw track data into standardized records.
         

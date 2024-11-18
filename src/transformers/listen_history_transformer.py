@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 class ListenHistoryTransformer(BaseTransformer):
     """Transforms user listening history data into a standardized format."""
     
-    def transform(self, raw_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _transform(self, raw_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Transforms raw listening history data into standardized records.
         

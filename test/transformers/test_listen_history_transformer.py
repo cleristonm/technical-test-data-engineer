@@ -21,7 +21,7 @@ class TestListenHistoryTransformer:
 
     def test_transform_valid_history(self, transformer, valid_history, caplog):
         """Test transformation of valid history data"""
-        result = transformer.transform([valid_history])
+        result = transformer._transform([valid_history])
         
         assert len(result) == 2  # Two tracks
         assert all(record['user_id'] == 1 for record in result)
@@ -34,7 +34,7 @@ class TestListenHistoryTransformer:
         invalid_history = valid_history.copy()
         invalid_history['user_id'] = 'not_an_int'
         
-        result = transformer.transform([invalid_history])
+        result = transformer._transform([invalid_history])
         
         assert len(result) == 0
         assert "Invalid user_id format" in caplog.text
@@ -44,7 +44,7 @@ class TestListenHistoryTransformer:
         invalid_history = valid_history.copy()
         invalid_history['items'] = 'not_a_list'
         
-        result = transformer.transform([invalid_history])
+        result = transformer._transform([invalid_history])
         
         assert len(result) == 0
         assert "Invalid items format" in caplog.text
@@ -54,7 +54,7 @@ class TestListenHistoryTransformer:
         invalid_history = valid_history.copy()
         invalid_history['items'] = [101, -1, 'invalid', None, 102]
         
-        result = transformer.transform([invalid_history])
+        result = transformer._transform([invalid_history])
         
         assert len(result) == 2  # Only valid track IDs should be processed
         assert "Invalid track ID" in caplog.text
@@ -74,7 +74,7 @@ class TestListenHistoryTransformer:
             }
         ]
         
-        result = transformer.transform(mixed_data)
+        result = transformer._transform(mixed_data)
         
         assert len(result) == 4  # 2 tracks from first record + 2 valid tracks from third
         assert "Successfully processed: 4" in caplog.text
