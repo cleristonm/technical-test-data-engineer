@@ -1,71 +1,100 @@
-from datetime import datetime
-from typing import List, Dict, Any, Set
-from src.transformers.base_transformer import BaseTransformer
-from airflow.utils.log.logging_mixin import LoggingMixin
+from .base_transformer import BaseTransformer
+from typing import List, Dict, Any
 
-class UsersTransformer(BaseTransformer, LoggingMixin):
-    def __init__(self):
-        super().__init__()
-        self.processed_emails: Set[str] = set()  # Set to track processed emails
-
-    def transform(self, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+class UsersTransformer(BaseTransformer):
+    """Transforms user data into a standardized format."""
+    
+    def transform(self, raw_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        Transform raw user data into the desired format, skipping duplicate emails.
+        Transforms raw user data into standardized records.
         
         Args:
-            raw_data (Dict[str, Any]): Raw data containing user information
+            raw_data: List of user records containing personal information
             
         Returns:
-            List[Dict[str, Any]]: List of transformed user records without email duplicates
+            List of transformed user records
         """
-        self.log.info("Starting user data transformation")
-        transformed_users = []
-        
-        try:
-            self.log.info(f"Processing {len(raw_data)} user records")
-            duplicates_count = 0
+        self.log.info(f"Starting user data transformation. Records count: {len(raw_data)}")
+        self._validate_input_type(raw_data, "users")
             
-            for user in raw_data:
-                email = user['email'].lower()
+        transformed_users = []
+        validation_errors = []
+        processed_count = 0
+        error_count = 0
+        processed_emails = set()
+        
+        for index, user in enumerate(raw_data):
+            try:
+                self._validate_required_fields(user, [
+                    'id', 'first_name', 'last_name', 'email', 
+                    'gender', 'favorite_genres', 'created_at', 'updated_at'
+                ])
                 
-                # Skip if email is already processed
-                if email in self.processed_emails:
-                    self.log.warning(f"Skipping duplicate email: {email}")
-                    duplicates_count += 1
+                if not isinstance(user['id'], int):
+                    raise ValueError(f"Invalid id format: {user['id']}")
+                
+                email = self._validate_string(user['email'], 'email').lower()
+                if email in processed_emails:
+                    error_msg = f"Skipping duplicate email: {email}"
+                    self.log.warning(error_msg)
+                    validation_errors.append(error_msg)
+                    error_count += 1
                     continue
                 
                 transformed_user = {
                     'id': user['id'],
-                    'first_name': user['first_name'],
-                    'last_name': user['last_name'],
+                    'first_name': self._validate_string(user['first_name'], 'first_name'),
+                    'last_name': self._validate_string(user['last_name'], 'last_name'),
                     'email': email,
-                    'gender': user['gender'],
-                    'favorite_genres': user['favorite_genres'].split(',') if ',' in user['favorite_genres'] else [user['favorite_genres']],
-                    'created_at': datetime.fromisoformat(user['created_at']).isoformat(),
-                    'updated_at': datetime.fromisoformat(user['updated_at']).isoformat()
+                    'gender': self._validate_gender(user['gender']),
+                    'favorite_genres': self._parse_genres(user['favorite_genres']),
+                    'created_at': self._validate_timestamp(user['created_at'], 'created_at', validation_errors),
+                    'updated_at': self._validate_timestamp(user['updated_at'], 'updated_at', validation_errors)
                 }
                 
-                self.processed_emails.add(email)
-                transformed_users.append(transformed_user)
+                if all(transformed_user.values()):
+                    transformed_users.append(transformed_user)
+                    processed_emails.add(email)
+                    processed_count += 1
+                else:
+                    error_count += 1
                 
-            self.log.info(f"User transformation completed. Processed: {len(transformed_users)}, Skipped duplicates: {duplicates_count}")
-            return transformed_users
-            
-        except KeyError as e:
-            error_msg = f"Missing required field in user data: {str(e)}"
-            self.log.error(error_msg)
-            raise ValueError(error_msg)
-            
-        except ValueError as e:
-            error_msg = f"Invalid date format in user data: {str(e)}"
-            self.log.error(error_msg)
-            raise ValueError(error_msg)
-            
-        except Exception as e:
-            error_msg = f"Unexpected error during user transformation: {str(e)}"
-            self.log.error(error_msg)
-            raise Exception(error_msg)
+            except (KeyError, ValueError) as e:
+                error_msg = f"Error processing user at index {index}: {str(e)}"
+                self.log.error(error_msg)
+                validation_errors.append(error_msg)
+                error_count += 1
+                
+            except Exception as e:
+                error_msg = f"Unexpected error processing user at index {index}: {str(e)}"
+                self.log.error(error_msg)
+                self.log.error(f"User data: {user}")
+                raise Exception(error_msg) from e
+        
+        self._log_transformation_summary(
+            len(raw_data),
+            processed_count,
+            error_count,
+            validation_errors,
+            "users"
+        )
+        
+        return transformed_users
 
-    def reset_processed_emails(self):
-        """Reset the set of processed emails"""
-        self.processed_emails.clear()
+    def _validate_gender(self, gender: str) -> str:
+        """
+        Validates and standardizes gender value.
+        
+        Args:
+            gender: Gender value to validate ('M' or 'F')
+            
+        Returns:
+            Standardized gender value in uppercase
+            
+        Raises:
+            ValueError: If gender value is invalid
+        """
+        gender = self._validate_string(gender, 'gender')
+        if gender.upper() not in ['M', 'F']:
+            raise ValueError(f"Invalid gender value: {gender}")
+        return gender.upper()
