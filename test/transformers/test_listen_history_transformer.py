@@ -6,8 +6,6 @@ of listening history data using pandas DataFrames.
 """
 
 import pytest
-import pandas as pd
-from datetime import datetime
 from src.transformers.listen_history_transformer import ListenHistoryTransformer, TransformerError
 
 
