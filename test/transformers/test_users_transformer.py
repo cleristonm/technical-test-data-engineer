@@ -1,68 +1,129 @@
+"""Unit tests for UsersTransformer class.
+
+This module contains test cases for the UsersTransformer class, validating its
+user data transformation and validation capabilities.
+"""
+
 import pytest
+import pandas as pd
 from datetime import datetime
-from src.transformers.users_transformer import UsersTransformer
-from typing import List, Dict, Any
+from src.transformers.users_transformer import UsersTransformer, TransformerError
 
 @pytest.fixture
 def transformer():
+    """Fixture providing UsersTransformer instance."""
     return UsersTransformer()
 
+
 @pytest.fixture
-def valid_user():
-    return {
+def valid_user_data():
+    """Fixture providing valid user test data."""
+    return [{
         'id': 1,
-        'first_name': 'Marc-Antoine',
-        'last_name': 'Gagnon',
-        'email': 'marc-antoine@example.com',
+        'first_name': 'John',
+        'last_name': 'Doe',
+        'email': 'john@example.com',
         'gender': 'Male',
-        'favorite_genres': 'rock,pop',
-        'created_at': '2024-03-20T10:00:00',
-        'updated_at': '2024-03-20T10:00:00'
-    }
+        'favorite_genres': '{Rock}',
+        'created_at': '2024-01-01T00:00:00',
+        'updated_at': '2024-01-01T00:00:00'
+    }]
+
 
 class TestUsersTransformer:
-    """Test suite for UsersTransformer"""
+    """Test suite for UsersTransformer class."""
 
-    def test_transform_valid_user(self, transformer, valid_user, caplog):
-        """Test transformation of valid user data"""
-        result = transformer._transform([valid_user])
+    def test_valid_user_transformation(self, transformer, valid_user_data):
+        """
+        Test transformation of valid user data.
+        
+        Args:
+            transformer: UsersTransformer fixture
+            valid_user_data: Valid user data fixture
+        """
+        result = transformer.transform(valid_user_data)
         
         assert len(result) == 1
-        transformed = result[0]
-        assert transformed['id'] == valid_user['id']
-        assert transformed['email'] == valid_user['email'].lower()
-        assert "Starting user data transformation" in caplog.text
-        assert "Successfully processed: 1" in caplog.text
+        assert result[0]['email'] == 'john@example.com'
+        assert result[0]['gender'] == 'Male'
+        assert result[0]['favorite_genres'] == 'Rock'
 
-    def test_validate_gender(self, transformer):
-        """Test gender validation"""
-        assert transformer._validate_gender("Male") == "Male"
-        assert transformer._validate_gender("Agender") == "Agender"
+    def test_duplicate_email_handling(self, transformer):
+        """
+        Test handling of duplicate email addresses.
         
-        with pytest.raises(ValueError) as exc_info:
-            transformer._validate_gender("invalid")
-        assert "Invalid gender value" in str(exc_info.value)
-
-    def test_duplicate_email_handling(self, transformer, valid_user, caplog):
-        """Test handling of duplicate emails"""
-        duplicate_user = valid_user.copy()
-        duplicate_user['id'] = 2
+        Args:
+            transformer: UsersTransformer fixture
+        """
+        data = [
+            {
+                'id': 1,
+                'email': 'duplicate@example.com',
+                'first_name': 'First',
+                'last_name': 'User',
+                'gender': 'Female',
+                'favorite_genres': '{Rock}',
+                'created_at': '2024-01-01T00:00:00',
+                'updated_at': '2024-01-01T00:00:00'
+            },
+            {
+                'id': 2,
+                'email': 'duplicate@example.com',
+                'first_name': 'Second',
+                'last_name': 'User',
+                'gender': 'Male',
+                'favorite_genres': '{Pop}',
+                'created_at': '2024-01-01T00:00:00',
+                'updated_at': '2024-01-01T00:00:00'
+            }
+        ]
         
-        result = transformer._transform([valid_user, duplicate_user])
+        result = transformer.transform(data)
         
         assert len(result) == 1
-        assert "Skipping duplicate email" in caplog.text
+        assert 'duplicate email found' in transformer._validation_errors[0].lower()
 
-    def test_exceptions(self, transformer, caplog):
-        """Test exception handling"""
-        invalid_user = {
-            'created_at': '2024-03-20T10:00:00',
-            'updated_at': '2024-03-20T10:00:00'
-        }
+    def test_invalid_gender_handling(self, transformer, valid_user_data):
+        """
+        Test handling of invalid gender values.
         
-        result = transformer._transform([invalid_user])
+        Args:
+            transformer: UsersTransformer fixture
+            valid_user_data: Valid user data fixture
+        """
+        data = valid_user_data.copy()
+        data[0]['gender'] = 'Invalid'
+        
+        result = transformer.transform(data)
         
         assert len(result) == 0
-        expected_fields = ['id', 'first_name', 'last_name', 'email', 'gender', 'favorite_genres']
-        assert f"Missing required fields: {expected_fields}" in caplog.text
-        assert "Error count: 1" in caplog.text
+        assert 'invalid gender value' in transformer._validation_errors[0].lower()
+
+    def test_missing_required_fields(self, transformer):
+        """
+        Test handling of missing required fields.
+        
+        Args:
+            transformer: UsersTransformer fixture
+        """
+        data = [{'id': 1, 'email': 'test@example.com'}]  # Missing required fields
+        
+        with pytest.raises(TransformerError) as exc_info:
+            transformer.transform(data)
+        
+        assert 'missing required fields' in str(exc_info.value).lower()
+
+    def test_genre_formatting(self, transformer, valid_user_data):
+        """
+        Test formatting of favorite genres.
+        
+        Args:
+            transformer: UsersTransformer fixture
+            valid_user_data: Valid user data fixture
+        """
+        data = valid_user_data.copy()
+        data[0]['favorite_genres'] = '{Rock, Pop}'
+        
+        result = transformer.transform(data)
+        
+        assert result[0]['favorite_genres'] == 'Rock, Pop' 

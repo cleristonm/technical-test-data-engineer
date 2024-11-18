@@ -1,15 +1,15 @@
 """
-Base transformer module providing common transformation functionality.
+Base transformer module for data processing using Pandas.
 
-This module defines the base classes and utilities for data transformation,
-including validation, error handling, and logging capabilities.
+This module provides common transformation functionality for all data types,
+implementing shared validation and processing methods.
 """
 
+import pandas as pd
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 from airflow.utils.log.logging_mixin import LoggingMixin
-from airflow.exceptions import AirflowException
 
 
 class TransformerError(Exception):
@@ -19,168 +19,130 @@ class TransformerError(Exception):
 
 class BaseTransformer(ABC, LoggingMixin):
     """
-    Abstract base class for data transformers.
+    Abstract base class for data transformers using Pandas.
     
-    Provides common functionality for data validation, transformation,
-    and error handling. All transformer implementations should inherit
-    from this class.
+    This class provides common functionality for data validation and transformation
+    that can be shared across different transformer implementations.
+    
+    Attributes:
+        _validation_errors (List[str]): Collection of validation error messages
     """
+    
+    def __init__(self):
+        """Initialize base transformer with validation error collection."""
+        super().__init__()
+        self._validation_errors = []
 
     @abstractmethod
-    def transform(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Transform the extracted data.
+        Transform the input DataFrame.
         
         Args:
-            data: List of records to transform
+            df: Input DataFrame to transform
             
         Returns:
-            List of transformed records
+            pd.DataFrame: Transformed DataFrame
         """
         pass
 
-    def _validate_input_type(self, raw_data: Any, expected_type: str = "histories") -> None:
-        """
-        Validate input data type.
-        
-        Args:
-            raw_data: Data to validate
-            expected_type: Expected type name for error messages
-            
-        Raises:
-            ValueError: If input is not a list
-        """
-        if not isinstance(raw_data, list):
-            error_msg = f"Expected list of {expected_type}, got {type(raw_data).__name__}"
-            self.log.error(error_msg)
-            raise ValueError(error_msg)
-
-    def _validate_string(self, value: str, field_name: str) -> str:
-        """
-        Validate and clean string fields.
-        
-        Args:
-            value: String to validate
-            field_name: Field name for error messages
-            
-        Returns:
-            Cleaned string value
-            
-        Raises:
-            ValueError: If value is not a non-empty string
-        """
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError(f"Invalid {field_name}: must be non-empty string")
-        return value.strip()
-
-    def _validate_timestamp(self, timestamp: str, field_name: str, 
-                          validation_errors: List[str] = None) -> str:
-        """
-        Validate timestamp format.
-        
-        Args:
-            timestamp: ISO format timestamp string
-            field_name: Field name for error messages
-            validation_errors: Optional list to collect validation errors
-            
-        Returns:
-            Validated timestamp string
-            
-        Raises:
-            ValueError: If timestamp format is invalid (unless validation_errors is provided)
-        """
-        try:
-            if not timestamp or not isinstance(timestamp, str):
-                raise ValueError(f"Invalid {field_name}: must be non-empty string")
-                
-            if 'T' not in timestamp:
-                raise ValueError(f"Invalid {field_name} format: must include both date and time")
-                
-            datetime.fromisoformat(timestamp)
-            return timestamp
-            
-        except ValueError as e:
-            error_msg = f"Invalid {field_name} format: {timestamp}"
-            if validation_errors is not None:
-                validation_errors.append(error_msg)
-                self.log.warning(error_msg)
-                return False
-            raise ValueError(error_msg)
-
-    def _parse_genres(self, genres: str) -> List[str]:
-        """
-        Remove curly braces from genres string.
-        
-        Args:
-            genres: String containing genres
-            
-        Returns:
-            Genres string without curly braces
-        """
-        return genres.replace("{", "").replace("}", "").strip()
-
-    def _log_transformation_summary(self, input_count: int, processed_count: int,
-                                 error_count: int, validation_errors: List[str],
-                                 record_type: str = "records") -> None:
-        """
-        Log transformation summary statistics.
-        
-        Args:
-            input_count: Number of input records
-            processed_count: Number of successfully processed records
-            error_count: Number of records with errors
-            validation_errors: List of validation error messages
-            record_type: Type of records being processed (for logging)
-        """
-        self.log.info(
-            f"Transformation completed:\n"
-            f"- Input {record_type}: {input_count}\n"
-            f"- Successfully processed: {processed_count}\n"
-            f"- Error count: {error_count}\n"
-            f"- Total validation errors: {len(validation_errors)}"
-        )
-        
-        if validation_errors:
-            self.log.warning("Validation errors occurred:\n" + "\n".join(validation_errors))
-
-    def _validate_required_fields(self, data: Dict[str, Any], required_fields: List[str]) -> None:
-        """
-        Validate presence of required fields.
-        
-        Args:
-            data: Dictionary containing record data
-            required_fields: List of required field names
-            
-        Raises:
-            KeyError: If any required fields are missing
-        """
-        if missing := [f for f in required_fields if f not in data]:
-            raise KeyError(f"Missing required fields: {missing}")
-
     def transform(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        Transform input data and validate output size.
+        Transform input data and ensure JSON serializable output.
         
         Args:
-            data: List of input records
+            data: List of dictionaries to transform
             
         Returns:
-            List of transformed records
+            List[Dict[str, Any]]: Transformed records with serializable values
             
         Raises:
-            AirflowException: If output size is less than 90% of input size
+            TransformerError: If transformation fails
         """
         if not data:
             return []
             
-        input_size = len(data)
-        transformed_data = self._transform(data)
-        output_size = len(transformed_data)
-        
-        if output_size < (input_size * 0.9):
-            raise AirflowException(
-                f"Transform validation failed: Output size ({output_size}) is less than "
-                f"90% of input size ({input_size}). Lost {input_size - output_size} records."
-            )
+        try:
+            # Convert to DataFrame
+            df = pd.DataFrame(data)
             
-        return transformed_data
+            # Apply transformation
+            df = self._transform(df)
+            
+            # Convert timestamps to ISO format strings
+            for col in df.select_dtypes(include=['datetime64[ns]']).columns:
+                df[col] = df[col].dt.strftime('%Y-%m-%dT%H:%M:%S.%f')
+            
+            # Convert to records
+            return df.to_dict('records')
+            
+        except Exception as e:
+            self.log.error(f"Transformation failed: {str(e)}")
+            raise TransformerError(str(e)) from e
+
+    def _validate_timestamps(self, df: pd.DataFrame, 
+                           timestamp_columns: List[str]) -> pd.DataFrame:
+        """
+        Validate timestamp columns in DataFrame.
+        
+        Args:
+            df: Input DataFrame
+            timestamp_columns: List of column names containing timestamps
+            
+        Returns:
+            pd.DataFrame: DataFrame with validated timestamps
+        """
+        for col in timestamp_columns:
+            df[col] = pd.to_datetime(df[col], errors='coerce')
+            invalid_dates = df[col].isna()
+            if invalid_dates.any():
+                self._validation_errors.extend(
+                    f"Invalid {col} format at index {idx}" 
+                    for idx in df[invalid_dates].index
+                )
+        return df
+
+    def _validate_string_columns(self, df: pd.DataFrame, 
+                               string_columns: List[str]) -> pd.DataFrame:
+        """
+        Validate and clean string columns.
+        
+        Args:
+            df: Input DataFrame
+            string_columns: List of column names containing strings
+            
+        Returns:
+            pd.DataFrame: DataFrame with cleaned strings
+        """
+        for col in string_columns:
+            df[col] = df[col].str.strip()
+            invalid_strings = df[col].isna() | (df[col] == '')
+            if invalid_strings.any():
+                self._validation_errors.extend(
+                    f"Invalid {col} at index {idx}" 
+                    for idx in df[invalid_strings].index
+                )
+        return df
+
+    def _log_transformation_summary(self, df: pd.DataFrame, 
+                                  record_type: str = "records") -> None:
+        """
+        Log transformation summary statistics.
+        
+        Args:
+            df: Transformed DataFrame
+            record_type: Type of records being processed
+        """
+        self.log.info(
+            f"Transformation completed:\n"
+            f"- Input {record_type}: {len(df)}\n"
+            f"- Successfully processed: {len(df.dropna())}\n"
+            f"- Error count: {len(self._validation_errors)}\n"
+            f"- Validation errors: {len(self._validation_errors)}"
+        )
+        
+        if self._validation_errors:
+            self.log.warning(
+                "Validation errors occurred:\n" + 
+                "\n".join(self._validation_errors)
+            )

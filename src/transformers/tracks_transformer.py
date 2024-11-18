@@ -1,72 +1,143 @@
-from .base_transformer import BaseTransformer
+"""
+Track data transformer module using Pandas.
+
+This module handles the transformation and validation of music track data,
+ensuring data quality and standardization.
+"""
+
+import pandas as pd
 from typing import List, Dict, Any
+from .base_transformer import BaseTransformer, TransformerError
+
 
 class TracksTransformer(BaseTransformer):
-    """Transforms music track data into a standardized format."""
+    """
+    Transforms music track data using Pandas for efficient processing.
     
-    def _transform(self, raw_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    This transformer handles validation and standardization of track records,
+    including duration formatting, genre parsing, and timestamp validation.
+    
+    Attributes:
+        _required_fields (List[str]): Required fields in track records
+    """
+    
+    def __init__(self):
+        """Initialize TracksTransformer with required fields."""
+        super().__init__()
+        self._required_fields = [
+            'id', 'name', 'artist', 'duration',
+            'genres', 'created_at', 'updated_at'
+        ]
+
+    def _transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Transforms raw track data into standardized records.
+        Transform track DataFrame with validation.
         
         Args:
-            raw_data: List of track records containing id, name, artist,
-                     duration (MM:SS), genres, created_at and updated_at
+            df: Input DataFrame with track data
             
         Returns:
-            List of transformed track records
+            pd.DataFrame: Transformed and validated DataFrame
+            
+        Raises:
+            TransformerError: If required fields are missing or validation fails
         """
-        self.log.info(f"Starting track transformation. Records count: {len(raw_data)}")
-        self._validate_input_type(raw_data, "tracks")
+        try:
+            # Validate required fields
+            missing_fields = set(self._required_fields) - set(df.columns)
+            if missing_fields:
+                raise TransformerError(f"Missing required fields: {missing_fields}")
             
-        transformed_tracks = []
-        validation_errors = []
-        processed_count = 0
-        error_count = 0
+            # Validate and transform fields
+            df = self._validate_basic_fields(df)
+            df = self._validate_timestamps(df, ['created_at', 'updated_at'])
+            df = self._validate_duration(df)
+            df = self._transform_genres(df)
+            
+            # Remove invalid records
+            df = df.dropna()
+            
+            self._log_transformation_summary(df, "tracks")
+            return df
+            
+        except Exception as e:
+            raise TransformerError(f"Track transformation failed: {str(e)}") from e
+
+    def _validate_basic_fields(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Validate and transform basic track fields.
         
-        for index, track in enumerate(raw_data):
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            pd.DataFrame: Validated DataFrame
+        """
+        # ID validation
+        df['id'] = pd.to_numeric(df['id'], errors='coerce')
+        
+        # String fields validation
+        string_fields = ['name', 'artist']
+        df = self._validate_string_columns(df, string_fields)
+        
+        return df
+
+    def _validate_duration(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Validate and standardize duration format (MM:SS).
+        
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            pd.DataFrame: DataFrame with validated durations
+        """
+        def is_valid_duration(duration: str) -> bool:
+            """Check if duration string matches MM:SS format."""
+            if not isinstance(duration, str) or ':' not in duration:
+                return False
             try:
-                self._validate_required_fields(track, [
-                    'id', 'name', 'artist', 'duration', 
-                    'genres', 'created_at', 'updated_at'
-                ])
-                
-                if not isinstance(track['id'], int):
-                    raise ValueError(f"Invalid id format: {track['id']}")
-                    
-                if not isinstance(track['duration'], str) or ':' not in track['duration']:
-                    raise ValueError(f"Invalid duration format: {track['duration']}")
-                
-                transformed_track = {
-                    'id': track['id'],
-                    'name': self._validate_string(track['name'], 'name'),
-                    'artist': self._validate_string(track['artist'], 'artist'),
-                    'duration': track['duration'],
-                    'genres': self._parse_genres(track['genres']),
-                    'created_at': self._validate_timestamp(track['created_at'], 'created_at'),
-                    'updated_at': self._validate_timestamp(track['updated_at'], 'updated_at')
-                }
-                
-                transformed_tracks.append(transformed_track)
-                processed_count += 1
-                
-            except (KeyError, ValueError) as e:
-                error_msg = f"Error processing track at index {index}: {str(e)}"
-                self.log.error(error_msg)
-                validation_errors.append(error_msg)
-                error_count += 1
-                
-            except Exception as e:
-                error_msg = f"Unexpected error processing track at index {index}: {str(e)}"
-                self.log.error(error_msg)
-                self.log.error(f"Track data: {track}")
-                raise Exception(error_msg) from e
-        
-        self._log_transformation_summary(
-            len(raw_data), 
-            processed_count, 
-            error_count, 
-            validation_errors,
-            "tracks"
-        )
+                minutes, seconds = duration.split(':')
+                return (minutes.isdigit() and seconds.isdigit() and
+                       0 <= int(minutes) and 0 <= int(seconds) <= 59)
+            except ValueError:
+                return False
+
+        # Apply validation
+        invalid_durations = ~df['duration'].apply(is_valid_duration)
+        if invalid_durations.any():
+            self._validation_errors.extend(
+                f"Invalid duration format at index {idx}: {val}"
+                for idx, val in df[invalid_durations]['duration'].items()
+            )
+            df.loc[invalid_durations, 'duration'] = None
             
-        return transformed_tracks
+        return df
+
+    def _transform_genres(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transform and validate genre listings.
+        
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            pd.DataFrame: DataFrame with transformed genres
+        """
+        def clean_genres(genres: str) -> str:
+            """Clean and validate genre string."""
+            if not isinstance(genres, str):
+                return None
+            return genres.replace('{', '').replace('}', '').strip()
+
+        df['genres'] = df['genres'].apply(clean_genres)
+        
+        # Validate non-empty genres
+        invalid_genres = df['genres'].isna() | (df['genres'] == '')
+        if invalid_genres.any():
+            self._validation_errors.extend(
+                f"Invalid genres at index {idx}"
+                for idx in df[invalid_genres].index
+            )
+            
+        return df

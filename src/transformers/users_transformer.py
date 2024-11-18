@@ -1,115 +1,139 @@
-from .base_transformer import BaseTransformer
-from typing import List, Dict, Any
+"""
+User data transformer module using Pandas.
+
+This module handles the transformation and validation of user data,
+ensuring data quality and standardization.
+"""
+
+import pandas as pd
+from typing import List, Dict, Any, Optional
+from .base_transformer import BaseTransformer, TransformerError
 
 VALID_GENDERS = {
-    'Agender',
-    'Bigender',
-    'Female', 
-    'Genderfluid',
-    'Gender nonconforming',
-    'Genderqueer',
-    'Gender questioning',
-    'Male',
-    'Non-binary'
+    'Agender', 'Bigender', 'Female', 'Genderfluid',
+    'Gender nonconforming', 'Genderqueer', 
+    'Gender questioning', 'Male', 'Non-binary'
 }
 
 class UsersTransformer(BaseTransformer):
-    """Transforms user data into a standardized format."""
+    """
+    Transforms user data using Pandas for efficient processing.
     
-    def _transform(self, raw_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    This transformer handles validation and standardization of user records,
+    including personal information, email uniqueness, and timestamp formatting.
+    
+    Attributes:
+        _required_fields (List[str]): Required fields in user records
+    """
+    
+    def __init__(self):
+        """Initialize UsersTransformer with required fields."""
+        super().__init__()
+        self._required_fields = [
+            'id', 'first_name', 'last_name', 'email',
+            'gender', 'favorite_genres', 'created_at', 'updated_at'
+        ]
+
+    def _transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Transforms raw user data into standardized records.
+        Transform user DataFrame with validation.
         
         Args:
-            raw_data: List of user records containing personal information
+            df: Input DataFrame with user data
             
         Returns:
-            List of transformed user records
-        """
-        self.log.info(f"Starting user data transformation. Records count: {len(raw_data)}")
-        self._validate_input_type(raw_data, "users")
+            pd.DataFrame: Transformed and validated DataFrame
             
-        transformed_users = []
-        validation_errors = []
-        processed_count = 0
-        error_count = 0
-        processed_emails = set()
+        Raises:
+            TransformerError: If required fields are missing or validation fails
+        """
+        try:
+            # Validate required fields
+            missing_fields = set(self._required_fields) - set(df.columns)
+            if missing_fields:
+                raise TransformerError(f"Missing required fields: {missing_fields}")
+            
+            # Validate and transform fields
+            df = self._validate_basic_fields(df)
+            df = self._validate_timestamps(df, ['created_at', 'updated_at'])
+            df = self._handle_duplicates(df)
+            
+            # Remove invalid records
+            df = df.dropna()
+            
+            self._log_transformation_summary(df, "users")
+            return df
+            
+        except Exception as e:
+            raise TransformerError(f"User transformation failed: {str(e)}") from e
+
+    def _validate_basic_fields(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Validate and transform basic user fields.
         
-        for index, user in enumerate(raw_data):
-            try:
-                self._validate_required_fields(user, [
-                    'id', 'first_name', 'last_name', 'email', 
-                    'gender', 'favorite_genres', 'created_at', 'updated_at'
-                ])
-                
-                if not isinstance(user['id'], int):
-                    raise ValueError(f"Invalid id format: {user['id']}")
-                
-                email = self._validate_string(user['email'], 'email').lower()
-                if email in processed_emails:
-                    error_msg = f"Skipping duplicate email: {email}"
-                    self.log.warning(error_msg)
-                    validation_errors.append(error_msg)
-                    error_count += 1
-                    continue
-                
-                transformed_user = {
-                    'id': user['id'],
-                    'first_name': self._validate_string(user['first_name'], 'first_name'),
-                    'last_name': self._validate_string(user['last_name'], 'last_name'),
-                    'email': email,
-                    'gender': self._validate_gender(user['gender']),
-                    'favorite_genres': self._parse_genres(user['favorite_genres']),
-                    'created_at': self._validate_timestamp(user['created_at'], 'created_at', validation_errors),
-                    'updated_at': self._validate_timestamp(user['updated_at'], 'updated_at', validation_errors)
-                }
-                
-                if all(transformed_user.values()):
-                    transformed_users.append(transformed_user)
-                    processed_emails.add(email)
-                    processed_count += 1
-                else:
-                    error_count += 1
-                
-            except (KeyError, ValueError) as e:
-                error_msg = f"Error processing user at index {index}: {str(e)}"
-                self.log.error(error_msg)
-                validation_errors.append(error_msg)
-                error_count += 1
-                
-            except Exception as e:
-                error_msg = f"Unexpected error processing user at index {index}: {str(e)}"
-                self.log.error(error_msg)
-                self.log.error(f"User data: {user}")
-                raise Exception(error_msg) from e
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            pd.DataFrame: Validated DataFrame
+        """
+        # ID validation
+        df['id'] = pd.to_numeric(df['id'], errors='coerce')
         
-        self._log_transformation_summary(
-            len(raw_data),
-            processed_count,
-            error_count,
-            validation_errors,
-            "users"
+        # String fields validation
+        string_fields = ['first_name', 'last_name', 'email']
+        df = self._validate_string_columns(df, string_fields)
+        
+        # Email standardization
+        df['email'] = df['email'].str.lower()
+        
+        # Gender validation
+        df['gender'] = df['gender'].apply(self._validate_gender)
+        
+        # Genres parsing
+        df['favorite_genres'] = df['favorite_genres'].apply(
+            lambda x: x.replace('{', '').replace('}', '').strip() if isinstance(x, str) else None
         )
         
-        return transformed_users
+        return df
 
-    def _validate_gender(self, gender: str) -> str:
+    def _validate_gender(self, gender: Any) -> Optional[str]:
         """
-        Validates and standardizes gender value.
+        Validate gender against allowed values.
         
         Args:
             gender: Gender value to validate
             
         Returns:
-            Standardized gender value in uppercase
-            
-        Raises:
-            ValueError: If gender value is invalid
+            Optional[str]: Validated gender or None if invalid
         """
-        gender = self._validate_string(gender, 'gender')
+        if pd.isna(gender) or not isinstance(gender, str):
+            return None
+            
+        gender = gender.strip()
         if gender not in VALID_GENDERS:
-            raise ValueError(f"Invalid gender value: {gender}")
+            self._validation_errors.append(f"Invalid gender value: {gender}")
+            return None
+            
         return gender
+
+    def _handle_duplicates(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Handle duplicate email entries.
+        
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            pd.DataFrame: DataFrame with duplicates removed
+        """
+        duplicates = df[df.duplicated(subset=['email'], keep=False)]
+        if not duplicates.empty:
+            self._validation_errors.extend(
+                f"Duplicate email found: {email}" 
+                for email in duplicates['email'].unique()
+            )
+        return df.drop_duplicates(subset=['email'], keep='first')
 
     
 

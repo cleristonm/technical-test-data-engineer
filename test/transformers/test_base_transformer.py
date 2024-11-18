@@ -1,117 +1,58 @@
-"""Test suite for BaseTransformer class.
+"""Unit tests for BaseTransformer class.
 
 This module contains test cases for the BaseTransformer class, validating its
 transformation, validation, and error handling capabilities.
-
-Note:
-    All test methods use a concrete implementation of BaseTransformer
-    to verify the abstract base class functionality.
 """
 
 import pytest
+import pandas as pd
+from datetime import datetime
 from typing import List, Dict, Any
-from airflow.exceptions import AirflowException
-from src.transformers.base_transformer import BaseTransformer
+from src.transformers.base_transformer import BaseTransformer, TransformerError
 
 
 class TestTransformer(BaseTransformer):
-    """Concrete implementation of BaseTransformer for testing purposes.
+    """Concrete implementation of BaseTransformer for testing."""
     
-    Args:
-        BaseTransformer: Abstract base class being tested
-    """
-    
-    def _transform(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Implements the abstract transform method.
-        
-        Args:
-            data: List of dictionaries to transform
-            
-        Returns:
-            List[Dict[str, Any]]: Transformed data
-        """
-        return data
+    def _transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Simple transformation for testing."""
+        return df
+
+
+@pytest.fixture
+def transformer():
+    """Fixture providing TestTransformer instance."""
+    return TestTransformer()
 
 
 class TestBaseTransformer:
-    """Test suite for BaseTransformer methods."""
+    """Test suite for BaseTransformer class."""
 
-    @pytest.fixture
-    def transformer(self):
-        """Provides a TestTransformer instance for testing.
-        
-        Returns:
-            TestTransformer: Instance of the concrete transformer implementation
+    def test_empty_data(self, transformer):
         """
-        return TestTransformer()
+        Test transformation of empty data.
+        
+        Args:
+            transformer: TestTransformer fixture
+        """
+        assert transformer.transform([]) == []
 
-    class TestTransform:
-        """Test cases for the transform method."""
-
-        def test_empty_input(self, transformer):
-            """Test transformation of empty input.
-            
-            Args:
-                transformer: TestTransformer fixture
-            """
-            assert transformer.transform([]) == []
-
-        def test_size_validation(self, transformer):
-            """Test output size validation.
-            
-            Args:
-                transformer: TestTransformer fixture
-                
-            Raises:
-                AirflowException: When output size is less than 90% of input
-            """
-            input_data = [{"id": i} for i in range(100)]
-            filtered_data = [{"id": i} for i in range(80)]  # 80% of input
-            
-            transformer._transform = lambda x: filtered_data
-            
-            with pytest.raises(AirflowException) as exc_info:
-                transformer.transform(input_data)
-            assert "Output size (80) is less than 90% of input size (100)" in str(exc_info.value)
-
-        def test_successful_transform(self, transformer):
-            """Test successful transformation with valid data.
-            
-            Args:
-                transformer: TestTransformer fixture
-            """
-            input_data = [{"id": i} for i in range(10)]
-            result = transformer.transform(input_data)
-            assert len(result) == len(input_data)
-            assert result == input_data
-
-    class TestValidateRequiredFields:
-        """Test cases for required fields validation."""
-
-        def test_missing_fields(self, transformer):
-            """Test validation when required fields are missing.
-            
-            Args:
-                transformer: TestTransformer fixture
-                
-            Raises:
-                KeyError: When required fields are missing
-            """
-            data = {"field1": "value1"}
-            required = ["field1", "field2"]
-            
-            with pytest.raises(KeyError) as exc_info:
-                transformer._validate_required_fields(data, required)
-            assert "Missing required fields" in str(exc_info.value)
-
-        def test_all_fields_present(self, transformer):
-            """Test validation when all required fields are present.
-            
-            Args:
-                transformer: TestTransformer fixture
-            """
-            data = {"field1": "value1", "field2": "value2"}
-            required = ["field1", "field2"]
-            
-            # Should not raise any exception
-            transformer._validate_required_fields(data, required) 
+    def test_timestamp_validation(self, transformer):
+        """
+        Test timestamp validation functionality.
+        
+        Args:
+            transformer: TestTransformer fixture
+        """
+        data = [
+            {'date': '2024-01-01T00:00:00', 'value': 1},
+            {'date': 'invalid', 'value': 2},
+            {'date': None, 'value': 3}
+        ]
+        df = pd.DataFrame(data)
+        
+        result = transformer._validate_timestamps(df, ['date'])
+        
+        assert len(transformer._validation_errors) == 2
+        assert pd.isna(result.loc[1, 'date'])
+        assert pd.isna(result.loc[2, 'date']) 
