@@ -19,7 +19,7 @@ L'objectif du projet est de mettre en place un processus ETL (Extraction, Transf
 
 ##### Description
 - L'étape d'extraction est réalisée à l'aide d'une interface appelée BaseExtractor et d'une implémentation appelée GenericExtractor
-- GenericExtractor est responsable de l'ingestion des données de l'API
+- GenericExtractor est responsable de l'ingestion des données de l'API 
 - En cas de surgissement d'un nouveau donné nécessitant une ingestion personnalisée, il suffit de créer une nouvelle classe qui implémente cette ingestion
 
 #### ETL - Transformation
@@ -36,7 +36,9 @@ Les doublons d'adresses e-mail pour le même utilisateur ne sont pas acceptés. 
 #### ETL - Chargement
 
 ##### Description
-La phase de chargement des données a été effectuée en exploitant l'interface BasePostgresLoader, avec des implémentations spécifiques dans les classes GenericPostgresLoader pour les données utilisateurs et musiques, et ListenHistoryPostgresLoader pour les données d'historique d'écoute, qui intègre un traitement particulier pour vérifier l'insertion préalable des données associées aux utilisateurs et chansons.
+La phase de chargement des données a été effectuée en exploitant l'interface BasePostgresLoader, avec des implémentations spécifiques dans les classes:
+ - GenericPostgresLoader pour les données utilisateurs et musiques
+ - ListenHistoryPostgresLoader pour les données d'historique d'écoute, qui intègre un traitement particulier pour vérifier l'insertion préalable des données associées aux utilisateurs et chansons.
 
 Postgres a été choisi comme destination des données en raison de leur structure fixe et relationnelle. D'autres types de destinations auraient pu être utilisés, en fonction des besoins métier.
 
@@ -76,75 +78,150 @@ Pour visualiser les données stockées, suivez les étapes ci-dessous :
 
 ### Étape 4
 
-Pour stocker les informations issues des trois sources de données, j'ai recours à un système de base de données relationnelle, en raison de sa capacité à gérer des données structurées et relationnelles. Toutefois, dans le contexte d'un système d'intelligence artificielle, il convient également de prendre en compte des options de stockage de données plus spécialisées. Le choix du système de stockage de données sera fonction des besoins spécifiques du système d'intelligence artificielle et du volume de données à traiter. En outre, il est essentiel de considérer l'intégration avec d'autres technologies d'intelligence artificielle, notamment les frameworks d'apprentissage automatique et les bibliothèques de traitement du langage naturel.
+Pour stocker les informations issues des trois sources de données, j'ai conçu un schéma de base de données relationnelle en utilisant **PostgreSQL**. Ce système a été choisi pour sa capacité à gérer efficacement des données structurées, sa robustesse, et son extensibilité. Voici les détails du schéma et des raisons de ce choix.
+
+#### Schéma de la base de données
+1. **Table `tracks`** : Stocke les informations relatives aux chansons, y compris leurs caractéristiques principales comme le titre, l’artiste, les auteurs-compositeurs, les genres, et la durée. Les colonnes incluent :
+   - `id` (clé primaire) : Identifiant unique pour chaque morceau.
+   - `name`, `artist`, `album` : Informations textuelles sur le changson.
+   - `songwriters` et `genres` : Colonnes pour les données textuelles ou multiples.
+   - `created_at` et `updated_at` : Permettent de suivre les modifications.
+
+2. **Table `users`** : Stocke les informations sur les utilisateurs, y compris leurs préférences musicales et leurs identifiants personnels. Les colonnes incluent :
+   - `id` (clé primaire) : Identifiant unique pour chaque utilisateur.
+   - `email` : Identifiant unique, indexé pour des recherches rapides.
+   - `favorite_genres` : Pour capturer les genres préférés des utilisateurs.
+
+3. **Table `listen_history`** : Enregistre les interactions des utilisateurs avec les chansons, reliant `users` et `tracks` via des clés étrangères. Les colonnes incluent :
+   - `id` (clé primaire) : Identifiant unique pour chaque historique d’écoute.
+   - `user_id` et `track_id` : Clés étrangères vers les tables `users` et `tracks`.
+   - `created_at` : Date et heure de l’écoute.
+
+#### Choix du système de base de données
+- **PostgreSQL** a été choisi car il offre :
+  - Une gestion efficace des relations entre les tables grâce aux clés étrangères.
+  - Des fonctionnalités avancées comme le support des données semi-structurées avec JSONB, ce qui serait utile si certaines données provenant des sources sont semi-structurées.
+  - Une forte intégration avec les frameworks ETL et les outils analytiques.
+  - Une compatibilité avec les frameworks d’intelligence artificielle pour l’extraction de données nécessaires aux modèles.
+
+#### Intégration avec l’ETL et l’intelligence artificielle
+- Les données issues des trois sources sont transformées et nettoyées dans un pipeline ETL écrit en Python avant d’être insérées dans cette base.
+- Pour des besoins analytiques ou d’apprentissage automatique, les données stockées dans PostgreSQL peuvent être directement exploitées grâce à des bibliothèques comme **SQLAlchemy** ou **Pandas**.
+
+#### Extensions possibles
+- En cas de besoins évolutifs ou d’un volume de données élevé, un entrepôt de données pourrait être envisagé. Ces solutions sont mieux adaptées pour des analyses complexes sur de grandes quantités de données.
 
 ### Étape 5
 
 Pour assurer la surveillance du pipeline de données, j'ai mis en place les éléments suivants :
 
 #### Méthode de surveillance
-- J'utilise Airflow pour surveiller l'exécution quotidienne du pipeline
-- J'ai journalisé les étapes de l'ETL pour suivre les performances
-- Cela me permet d'identifier rapidement les problèmes éventuels
+- **Utilisation d'Airflow :** 
+  - J'ai configuré Airflow pour orchestrer et surveiller l'exécution quotidienne du pipeline. 
+  - L'interface d'Airflow permet de visualiser en temps réel l'état des tâches (succès, échec ou en cours) et de relancer manuellement les tâches échouées si nécessaire.
+  - Des logs détaillés sont accessibles directement dans l'interface pour chaque étape du pipeline, facilitant le diagnostic des problèmes.
+
+- **Journalisation avancée :** 
+  - J'ai mis en place un système de journalisation détaillé à chaque étape du pipeline ETL (Extraction, Transformation, Chargement).
+  - Ces logs sont intégrés dans Airflow pour offrir une visibilité complète sur les performances et les anomalies.
 
 #### Métriques clés
-- Taux de réussite de l'exécution du pipeline
-- Temps d'exécution moyen du pipeline
-- Nombre d'erreurs et d'exceptions
-- Volume de données traitées
+- **Taux de réussite :** Pourcentage des exécutions du pipeline complétées avec succès.
+- **Temps d'exécution moyen :** Temps moyen nécessaire pour compléter une exécution du pipeline, disponible dans l'interface d'Airflow.
+- **Nombre d'erreurs et d'exceptions :** Compte des échecs ou exceptions visibles directement dans les logs d'Airflow.
+- **Volume de données traitées :** Quantité de données (enregistrements ou taille) extraites, transformées et chargées, surveillée via les étapes définies dans Airflow.
+
+
 
 ### Étape 6
 
+
 Pour automatiser le calcul des recommandations, je suivrais les étapes suivantes :
 
-1. Récupération des données : Je récupérerais les données stockées par l'ETL décrite précédemment.
+#### Étapes détaillées
 
-2. Suppression des colonnes inutiles : Je supprimerais les colonnes inutiles, telles que le nom et l'adresse e-mail.
+1. **Récupération des données :**
+   - Les données ingérées quotidiennement par le pipeline ETL seraient extraites depuis le stockage (par exemple, une base de données relationnelle ou un data lake).
 
-3. Chargement des données dans Pandas : Je chargerais les données dans Pandas.
+2. **Prétraitement des données :**
+   - **Nettoyage des données :** Suppression des colonnes inutiles telles que le nom et l'adresse e-mail, qui n'ont pas d'impact sur les recommandations.
+   - **Normalisation :** Application de la normalisation aux colonnes quantitatives pour standardiser les valeurs.
+   - **Encodage des catégories :** Utilisation de :
+     - **Label Encoding** pour des colonnes comme les genres musicaux.
+     - **Ordinal Encoding** pour des colonnes ordinales comme le sexe.
 
-4. Modifications pour améliorer les performances : Je effectuerais les modifications nécessaires pour améliorer les performances de l'algorithme, notamment :
+3. **Chargement des données dans un environnement de traitement :**
+   - Les données sont chargées dans un environnement comme **Pandas** ou directement dans un pipeline compatible avec des frameworks de machine learning tels que **TensorFlow**, **PyTorch** ou **Scikit-learn**.
 
-- La normalisation des colonnes quantitatives.
-- Le codage des colonnes descriptives (Label Encoder pour le genre musical et Ordinal Encoder pour le sexe).
+4. **Construction et exécution du modèle de recommandation :**
+   - Utilisation d'algorithmes de **filtrage collaboratif** (basé sur les utilisateurs ou les éléments) ou de **modèles hybrides** (ajoutant des données de contenu comme les genres ou l'historique d'écoute).
+   - Séparation des données en ensembles d'entraînement et de test pour évaluer les performances du modèle.
 
-Après cette étape, je séparerais les données en ensembles d'entraînement et de test pour évaluer les performances du modèle.
+5. **Évaluation du modèle :**
+   - Mesures des performances du modèle à l'aide de métriques telles que :
+     - **Précision**
+     - **Rappel**
+     - **Exactitude**
+   - Comparaison des résultats aux seuils définis par le client.
 
-Ensuite, j'utiliserais les algorithmes de filtrage collaboratif et mesurerais les performances du modèle avec les métriques de précision (Précision, Rappel, Exactitude).
+6. **Boucle d’amélioration continue :**
+   - Si les résultats sont en deçà des attentes :
+     - Ajustement des hyperparamètres via une recherche systématique (GridSearch, RandomSearch, ou Optuna).
+     - Modification du prétraitement des données pour mieux refléter les relations sous-jacentes.
+     - Introduction de techniques de régularisation ou de réduction de la dimensionnalité.
 
-Si le modèle n'atteint pas le seuil de performance défini par le client, je reviendrais aux étapes précédentes pour :
+#### Automatisation du processus
+- Le processus complet serait orchestré dans un outil, permettant d'exécuter le calcul des recommandations sur une base régulière.
+- Les modèles seraient sauvegardés et versionnés dans un gestionnaire comme **MLflow** pour garantir la traçabilité.
+- Les résultats des recommandations seraient stockés dans une base de données ou une API REST pour être facilement accessibles par les systèmes clients.
 
-- Réviser les hyperparamètres du modèle.
-- Ajuster le prétraitement des données.
-- Considérer des techniques de régularisation ou de sélection de caractéristiques.
-
-Après ajustements, je réévaluerais les performances du modèle et répéterais le processus jusqu'à atteindre les résultats souhaités.
 
 ### Étape 7
 
 Pour automatiser le réentrainement du modèle de recommandation, je suivrais les étapes suivantes :
 
-1. Planification : Je planifierais la fréquence de réentrainement en fonction des besoins du système et des changements dans les données.
+#### Étapes du processus
+1. **Planification :**
+   - Définir la fréquence de réentrainement en fonction des besoins du système (quotidien, hebdomadaire, ou basé sur un seuil de changement dans les données).
 
-2. Récupération des données : Je récupérerais les nouvelles données pour réentrainer le modèle.
+2. **Récupération des données :**
+   - Extraire les nouvelles données collectées par le pipeline ETL pour refléter les comportements récents des utilisateurs.
 
-3. Prétraitement des données : Je réappliquerais les mêmes étapes de prétraitement utilisées initialement (normalisation, encodage, etc.).
+3. **Prétraitement des données :**
+   - Réappliquer les mêmes étapes de prétraitement utilisées initialement, notamment :
+     - **Normalisation** des colonnes quantitatives.
+     - **Encodage** des catégories (Label Encoding, Ordinal Encoding).
 
-4. Réentrainement : Je réentrainerais le modèle en utilisant les nouvelles données et les mêmes algorithmes de filtrage collaboratif.
+4. **Réentrainement :**
+   - Utiliser les nouvelles données pour réentrainer le modèle avec les mêmes algorithmes de filtrage collaboratif ou hybrides.
+   - Optionnellement, inclure des techniques comme **transfer learning** si applicable.
 
-5. Évaluation : Je réévaluerais les performances du modèle réentrainé en utilisant les mêmes métriques de précision (Précision, Rappel, Exactitude).
+5. **Évaluation :**
+   - Mesurer les performances du modèle réentrainé à l’aide des mêmes métriques :
+     - **Précision**
+     - **Rappel**
+     - **Exactitude**
+   - Comparer les résultats au modèle précédent pour vérifier les améliorations ou éviter les régressions.
 
-6. Détection de surapprentissage (Overfitting) : Je vérifierais la présence de surapprentissage en utilisant des techniques telles que :
-    - Validation croisée
-    - Évaluation sur un jeu de données de test
+6. **Détection de surapprentissage (Overfitting) :**
+   - Effectuer une validation croisée pour identifier les risques de surapprentissage.
+   - Évaluer le modèle sur un jeu de données de test indépendant.
 
-7. Correction du surapprentissage : Si nécessaire, je ajusterais les hyperparamètres du modèle, utiliserait des techniques de régularisation ou réduirait la complexité du modèle.
+7. **Correction du surapprentissage :**
+   - Si nécessaire :
+     - Ajuster les hyperparamètres du modèle.
+     - Appliquer des techniques de régularisation (L1, L2, Dropout).
+     - Réduire la complexité du modèle en sélectionnant des caractéristiques pertinentes.
 
-8. Deployment : Je déployerais le modèle réentrainé dans le système.
+8. **Déploiement :**
+   - Déployer le modèle réentrainé dans le système, en remplaçant l’ancien modèle ou en maintenant une version parallèle pour tests (blue/green deployment).
 
-Pour automatiser ce processus, je utiliserais des outils tels que :
+#### Automatisation du processus
+Pour automatiser ce workflow, j'utiliserais les outils suivants :
+- **Apache Airflow :** Planification et orchestration des tâches de réentrainement.
+- **Docker :** Conteneurisation du modèle et de ses dépendances pour assurer la portabilité.
+- **Git :** Versionnement du code et des configurations associées au modèle.
+- **Cloud services (AWS, Google Cloud, Azure) :** Hébergement des données, exécution du réentrainement, et déploiement du modèle.
 
-- Apache Airflow pour planifier et orchestrer les tâches.
-- Docker pour conteneuriser le modèle et les dépendances.
-- Git pour versionner le code et les données.
-- Cloud services (AWS, Google Cloud, Azure) pour héberger et exécuter le modèle.
+
+
