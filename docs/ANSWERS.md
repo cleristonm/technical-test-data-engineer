@@ -6,7 +6,7 @@
 
 #### Introduction
 
-Le projet a pour objet d'implémenter le processus ETL (Extraction, Transformation et Chargement) à partir des données de 3 API relatives aux utilisateurs, aux pistes et à l'historique d'écoute.
+L'objectif du projet est de mettre en place un processus ETL (Extraction, Transformation et Chargement) qui permettra d'obtenir des données à partir d'une application musicale en lisant 3 endpoints concernant les utilisateurs, les chansons disponibles et l'historique d'écoute.
 
 #### Architecture du Projet
 
@@ -18,23 +18,38 @@ Le projet a pour objet d'implémenter le processus ETL (Extraction, Transformati
 #### ETL - Extraction
 
 ##### Description
-- L'étape d'extraction est réalisée à l'aide d'une interface appelée BaseTransformer et d'une implémentation appelée GenericTransformer
-- GenericTransformer est responsable de l'ingestion des données de l'API
+- L'étape d'extraction est réalisée à l'aide d'une interface appelée BaseExtractor et d'une implémentation appelée GenericExtractor
+- GenericExtractor est responsable de l'ingestion des données de l'API
 - En cas de surgissement d'un nouveau donné nécessitant une ingestion personnalisée, il suffit de créer une nouvelle classe qui implémente cette ingestion
 
 #### ETL - Transformation
 
 ##### Description
-- L'étape de transformation valide les données, telles que le genre et la date.
-- Les doublons d'adresses e-mail pour le même utilisateur ne sont pas acceptés.
-- Les validations sont implémentées dans l'interface pour être partagées entre les classes filles.
-- Chaque classe fille doit implémenter la méthode transform en fonction des règles métier.
+L'étape de transformation valide les données, telles que le genre et la date, en utilisant la bibliothèque Pandas pour un traitement efficace et flexible des données. Les avantages de l'utilisation de Pandas incluent :
+
+- Traitement rapide et efficace des grands ensembles de données
+- Fonctionnalités avancées de manipulation de données, telles que le regroupement, le tri et la fusion de données
+- Intégration facile avec d'autres bibliothèques Python pour la science des données
+
+Les doublons d'adresses e-mail pour le même utilisateur ne sont pas acceptés. Les validations sont implémentées dans l'interface BaseTransformer pour être partagées entre les classes filles. Chaque classe fille doit implémenter la méthode transform en fonction des règles d'affaires.
 
 #### ETL - Chargement
 
 ##### Description
-- Postgres est utilisé comme destination des données en raison de leur structure fixe et relationnelle.
-- D'autres types de destinations auraient pu être utilisés, en fonction des besoins métier.
+La phase de chargement des données a été effectuée en exploitant l'interface BasePostgresLoader, avec des implémentations spécifiques dans les classes GenericPostgresLoader pour les données utilisateurs et musiques, et ListenHistoryPostgresLoader pour les données d'historique d'écoute, qui intègre un traitement particulier pour vérifier l'insertion préalable des données associées aux utilisateurs et chansons.
+
+Postgres a été choisi comme destination des données en raison de leur structure fixe et relationnelle. D'autres types de destinations auraient pu être utilisés, en fonction des besoins métier.
+
+Pour visualiser les données stockées, suivez les étapes ci-dessous :
+
+1. Accédez à l'interface d'administration de la base de données (PGAdmin) via l'adresse : http://localhost:5050.
+2. Entrez les informations d'identification :
+    - Utilisateur : admin@admin.com
+    - Mot de passe : admin
+3. Connectez-vous à la base de données "music" en utilisant les informations suivantes :
+    - Hôte : postgres
+    - Utilisateur : airflow
+    - Mot de passe : airflow
 
 #### Exécution du Projet
 
@@ -47,6 +62,8 @@ Le projet a pour objet d'implémenter le processus ETL (Extraction, Transformati
 #### Considérations
 
 - Certaines choix auraient pu être différents dans la vie réelle, en tenant compte des outils utilisés par l'équipe, des discussions entre les membres de l'équipe et de la portée définie de la manière dont le projet de recommandation attend de recevoir les données.
+- Des termes anglais ont été utilisés dans les méthodes et les variables pour maintenir la cohérence avec le code existant.
+- Pour accéder aux données brutes, veuillez consulter l'API à l'adresse suivante : http://localhost:8000
 
 #### Technologies Utilisées
 
