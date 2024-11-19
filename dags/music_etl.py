@@ -1,7 +1,5 @@
-import os
 import sys
 from pathlib import Path
-from config.database import DB_CONFIG
 
 dag_path = Path(__file__).parent.parent
 sys.path.append(str(dag_path))
@@ -13,6 +11,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.utils.log.logging_mixin import LoggingMixin
 
+from config.database import DB_CONFIG
 from src.extractors.generic_extractor import GenericExtractor
 from src.transformers.tracks_transformer import TracksTransformer
 from src.transformers.users_transformer import UsersTransformer

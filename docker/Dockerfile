@@ -4,9 +4,8 @@ USER root
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY scripts/entrypoint.sh /tmp/entrypoint.sh
-RUN chmod +x /tmp/entrypoint.sh
-RUN chmod 777 /tmp/entrypoint.sh
-
+# Fix line endings and make script executable (works in both Linux and Windows)
+RUN sed -i 's/\r$//' /tmp/entrypoint.sh && chmod +x /tmp/entrypoint.sh
 USER airflow
 
 COPY requirements.txt /opt/airflow/requirements.txt

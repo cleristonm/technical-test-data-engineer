@@ -1,3 +1,9 @@
+import sys
+from pathlib import Path
+
+dag_path = Path(__file__).parent.parent
+sys.path.append(str(dag_path))
+
 from airflow import DAG
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.operators.empty import EmptyOperator
