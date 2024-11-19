@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+from config.database import DB_CONFIG
 
 dag_path = Path(__file__).parent.parent
 sys.path.append(str(dag_path))
@@ -37,14 +38,6 @@ DEFAULT_ARGS = {
 }
 
 ENTITIES = ['tracks', 'users', 'listen_history']
-
-DB_PARAMS = {
-    'dbname': 'music',
-    'user': 'airflow',
-    'password': 'airflow',
-    'host': 'postgres',
-    'port': '5432'
-}
 
 BASE_URL = 'http://airflow:8000'
 
@@ -123,8 +116,8 @@ with DAG('music_etl',
             }
         )
 
-        loader = (ListenHistoryPostgresLoader(DB_PARAMS) if entity == 'listen_history' 
-                 else GenericPostgresLoader(DB_PARAMS))
+        loader = (ListenHistoryPostgresLoader(DB_CONFIG) if entity == 'listen_history' 
+                 else GenericPostgresLoader(DB_CONFIG))
         
         load_task = PythonOperator(
             task_id=f'load_{entity}',

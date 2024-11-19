@@ -5,6 +5,7 @@ from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.models import Variable
 from datetime import datetime
 import psycopg2
+from config.database import DB_CONFIG
 
 logger = LoggingMixin().log
 
@@ -57,18 +58,10 @@ def clean_tables(**context):
     logger.info(f"Requested by: {user}")
     logger.info(f"Reason: {reason}")
     
-    db_params = {
-        'dbname': 'music',
-        'user': 'airflow',
-        'password': 'airflow',
-        'host': 'postgres',
-        'port': '5432'
-    }
-    
     tables = ['listen_history', 'users', 'tracks']
     
     try:
-        with psycopg2.connect(**db_params) as conn:
+        with psycopg2.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
                 for table in tables:
                     logger.info(f"Cleaning table: {table}")

@@ -58,7 +58,7 @@ Pour visualiser les données stockées, suivez les étapes ci-dessous :
 ##### Étapes
 1. Pour exécuter le projet en local, il suffit d'avoir Docker installé et de lancer la commande docker-compose up --build dans le répertoire du projet.
 2. Accédez à l'adresse localhost:8000 pour accéder à l'outil AirFlow.
-3. Connectez-vous avec l'utilisateur airflow et le mot de passe airflow.
+3. Connectez-vous avec l'utilisateur admin et le mot de passe admin.
 4. Accédez à la DAG music_etl et cliquez sur le bouton play pour l'exécuter.
 
 #### Considérations
